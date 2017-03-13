@@ -7,19 +7,28 @@
 //
 
 import UIKit
+import Parse
 
 class photoCell: UITableViewCell {
+
 
     @IBOutlet weak var photoView: UIImageView!
     @IBOutlet weak var titleLabel: UILabel!
     
-    
-    var post: Post! {
-        didSet {
+    var post: PFObject!{
+        didSet{
+            titleLabel.text = post["caption"] as! String
             
+            let userImageFile = post["media"] as! PFFile
+            userImageFile.getDataInBackground {
+                (imageData, error)  in
+                if !(error != nil) {
+                    let image = UIImage(data:imageData!)
+                    self.photoView.image = image
+                }
+            }
         }
     }
-    
     
     override func awakeFromNib() {
         super.awakeFromNib()

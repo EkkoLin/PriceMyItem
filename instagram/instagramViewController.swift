@@ -8,12 +8,12 @@
 
 import UIKit
 import Parse
-import MBProgressHUD
 
 class instagramViewController: UIViewController, UITableViewDataSource, UITableViewDelegate{
 
     @IBOutlet weak var tableView: UITableView!
-    var posts: [Post] = []
+    var posts: [PFObject]?
+    let refreshControl = UIRefreshControl()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,8 +22,12 @@ class instagramViewController: UIViewController, UITableViewDataSource, UITableV
         tableView.delegate = self
         tableView.dataSource = self
         
+        // Refresh
+        refreshControl.addTarget(self, action: #selector(refreshControlAction(refreshControl:)), for: UIControlEvents.valueChanged)
+        tableView.insertSubview(refreshControl, at: 0)
+        
         // Load data
-        self.retrievePosts()
+        self.fetchPost()
         
     }
 
@@ -47,39 +51,85 @@ class instagramViewController: UIViewController, UITableViewDataSource, UITableV
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return posts.count
+        if let posts = posts {
+            return posts.count
+        }
+        else {
+            return 0;
+        }
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "photoCell", for: indexPath) as! photoCell
-        let post = self.posts[indexPath.row]
+        let post = self.posts?[indexPath.row]
         cell.post = post
         
         return cell
     }
     
-    func retrievePosts() {
-        // construct query
-        let query = PFQuery(className: "Post")
-        query.order(byDescending: "createdAt")
-        query.includeKey("author")
-        query.limit = 20
-        MBProgressHUD.showAdded(to: self.view, animated: true)
-        // fetch data asynchronously
-        query.findObjectsInBackground { (posts: [PFObject]?, error: Error?) in
-            MBProgressHUD.hide(for: self.view, animated: true)
-            if let posts = posts{
-                print("Today is \(Date())")
-                for post in posts{
-                    self.posts.append(Post(object: post))
+    func refreshControlAction(refreshControl: UIRefreshControl) {
+        // Refresh once then stop
+        fetchPost()
+        refreshControl.endRefreshing()
+    }
+    
+    private func fetchPost(){
+        User.fetchPosts(sucess: { (object: [PFObject]?) -> () in
+            
+            self.posts = object
+            self.tableView.reloadData()
+            
+        }) { (error: NSError?) -> () in
+            
+            print("Unable to retrieve data")
+        }
+    }
+}
+
+    class User: PFUser {
+        class func fetchPosts(sucess: @escaping ([PFObject]?) -> (), failure: @escaping (NSError?) -> () )
+        {
+            let query = PFQuery(className: "Post")
+            query.order(byDescending: "createdAt")
+            query.includeKey("updated_at")
+            query.includeKey("author")
+            query.limit = 20
+            
+            // fetch data asynchronously
+            query.findObjectsInBackground { (posts, error) in
+                if let posts = posts
+                {
+                    sucess(posts)
                 }
-                self.tableView.reloadData()
-            }else{
-                print(error?.localizedDescription)
+                else
+                {
+                    failure(error as NSError?)
+                }
+            }
+        }
+        
+        class func fetchMyPosts(sucess: @escaping ([PFObject]?) -> (), failure: @escaping (NSError?) -> () )
+        {
+            let query = PFQuery(className: "Post")
+            query.whereKey("author", equalTo: PFUser.current()!)
+            query.order(byDescending: "createdAt")
+            query.includeKey("updated_at")
+            query.includeKey("author")
+            query.limit = 20
+            
+            // fetch data asynchronously
+            query.findObjectsInBackground { (posts, error) in
+                if let posts = posts
+                {
+                    sucess(posts)
+                }
+                else
+                {
+                    failure(error as NSError?)
+                
             }
         }
     }
-    
     /*
     // MARK: - Navigation
 
@@ -89,5 +139,4 @@ class instagramViewController: UIViewController, UITableViewDataSource, UITableV
         // Pass the selected object to the new view controller.
     }
     */
-
 }
